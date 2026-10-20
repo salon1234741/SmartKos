@@ -1,0 +1,696 @@
+﻿<!DOCTYPE html>
+<html class="dark" lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Kos Dashboard</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0a0e14;--surface:#151a21;--surface-high:#1b2028;--surface-highest:#20262f;
+--surface-low:#0f141a;--primary:#82aeff;--primary-dim:#0e71e4;--primary-container:#69a0ff;
+--secondary:#fd9000;--tertiary:#b5ffc2;--tertiary-bright:#3fff8b;
+--on-surface:#f1f3fc;--on-surface-variant:#a8abb3;--outline:#72757d;--outline-variant:#44484f;
+--error:#ff716c;--error-container:#9f0519;--on-error-container:#ffa8a3;
+--radius-xl:2rem;--radius-lg:1.5rem;--radius-md:1rem;--radius-sm:0.75rem;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--on-surface);min-height:100dvh;padding-bottom:7rem;-webkit-font-smoothing:antialiased}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+.mat-filled{font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+
+/* Auth Guard Overlay */
+#auth-guard{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
+#auth-guard .guard-inner{text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
+#auth-guard .guard-spinner{width:2.5rem;height:2.5rem;border-radius:50%;border:3px solid var(--outline-variant);border-top-color:var(--primary);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#auth-guard .guard-label{font-size:.85rem;color:var(--outline);font-weight:500}
+
+/* Header */
+.top-bar{position:sticky;top:0;z-index:50;background:var(--surface);padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center}
+.top-bar-left{display:flex;align-items:center;gap:0.75rem}
+.avatar{width:2.5rem;height:2.5rem;border-radius:50%;background:var(--surface-highest);border:2px solid var(--primary-container);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.avatar .material-symbols-outlined{font-size:1.5rem;color:var(--primary)}
+.top-bar-info .label{font-size:10px;color:var(--outline);text-transform:uppercase;letter-spacing:0.15em;font-weight:700}
+.top-bar-info h1{font-size:1.1rem;font-weight:600;color:var(--primary);margin-top:2px}
+.top-bar-right{display:flex;align-items:center;gap:.5rem}
+.notif-btn{width:2.5rem;height:2.5rem;border-radius:var(--radius-sm);background:var(--surface-highest);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.notif-btn:active{transform:scale(.95)}
+.notif-btn .material-symbols-outlined{color:var(--primary);font-size:1.3rem}
+.logout-btn{width:2.5rem;height:2.5rem;border-radius:var(--radius-sm);background:rgba(255,113,108,.1);border:1px solid rgba(255,113,108,.2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.logout-btn:active{transform:scale(.95)}
+.logout-btn .material-symbols-outlined{color:var(--error);font-size:1.3rem}
+
+/* Main */
+main{padding:1rem 1.5rem;max-width:480px;margin:0 auto}
+.tab-content{display:none}.tab-content.active{display:block}
+.section-gap{display:flex;flex-direction:column;gap:1.25rem}
+
+/* Clock Hero */
+.clock-hero{position:relative;overflow:hidden;border-radius:var(--radius-xl);padding:2rem;background:var(--surface);border:1px solid rgba(68,72,79,.1);text-align:center}
+.clock-hero .glow{position:absolute;right:-3rem;top:-3rem;width:12rem;height:12rem;background:rgba(130,174,255,.1);border-radius:50%;filter:blur(80px)}
+.clock-hero .time{font-family:'Poppins',sans-serif;font-size:4rem;font-weight:800;letter-spacing:3px;line-height:1;position:relative;z-index:1;display:flex;align-items:baseline;justify-content:center;font-variant-numeric:tabular-nums}
+.clock-hero .date{margin-top:.5rem;color:var(--outline);font-weight:500;letter-spacing:.03em;position:relative;z-index:1;font-size:.9rem}
+.digit-w{display:inline-block;overflow:hidden;height:1.15em;vertical-align:bottom;width:0.62em;text-align:center}
+.digit{display:block}.digit.slide-in{animation:slideUp .25s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes slideUp{from{transform:translateY(-40%);opacity:0}to{transform:translateY(0);opacity:1}}
+.sep{margin:0 4px;color:rgba(255,255,255,0.25);font-weight:400;transform:translateY(-4px)}
+
+/* Glass Panel */
+.glass{backdrop-filter:blur(20px);background:linear-gradient(135deg,rgba(21,26,33,.7),rgba(15,20,26,.4));border:1px solid rgba(68,72,79,.1);border-radius:var(--radius-xl);padding:1.5rem}
+
+/* Weather */
+.weather-card{display:flex;flex-direction:column;gap:1.25rem}
+.weather-top{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.weather-main{display:flex;align-items:center;gap:0.75rem}
+.weather-temp{font-size:3.5rem;font-weight:800;letter-spacing:-2px;line-height:1;color:var(--on-surface)}
+.weather-temp sup{font-size:1.25rem;font-weight:600;vertical-align:super;margin-left:2px;opacity:.6}
+.weather-icon{font-size:3.5rem;line-height:1;filter:drop-shadow(0 10px 10px rgba(0,0,0,0.2))}
+.weather-icon img{width:64px;height:64px;object-fit:contain}
+.weather-info{text-align:right;display:flex;flex-direction:column;justify-content:center}
+.weather-cond{font-size:1.1rem;font-weight:600;color:var(--on-surface);line-height:1.2}
+.weather-feels{font-size:.85rem;color:var(--outline);margin-top:4px}
+.weather-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.weather-stat{background:var(--surface-highest);border-radius:var(--radius-sm);padding:.65rem .5rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
+.weather-stat-label{font-size:9px;color:var(--outline);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.weather-stat-val{font-size:.85rem;font-weight:700;color:var(--on-surface)}
+.weather-stat-note{font-size:9px;color:var(--on-surface-variant);font-weight:500}
+.weather-loading{color:var(--outline);font-size:.85rem;text-align:center;padding:1rem 0}
+
+/* Section Title */
+.section-title{display:flex;justify-content:space-between;align-items:center}
+.section-title h2{font-size:.8rem;font-weight:700;color:var(--outline);text-transform:uppercase;letter-spacing:.15em}
+.section-title span{font-size:.75rem;color:var(--primary);font-weight:500}
+
+/* Prayer Cards */
+.prayer-scroll{display:flex;gap:.75rem;overflow-x:auto;padding-bottom:.5rem;padding-top:.75rem;scrollbar-width:none}
+.prayer-scroll::-webkit-scrollbar{display:none}
+.prayer-card{flex-shrink:0;width:6rem;padding:1rem;border-radius:var(--radius-md);background:var(--surface);border:1px solid rgba(68,72,79,.05);text-align:center;transition:all .3s;position:relative}
+.prayer-card .p-name{font-size:10px;color:var(--outline);margin-bottom:4px}
+.prayer-card .p-time{font-weight:700;font-size:1rem;color:var(--on-surface)}
+.prayer-card.aktif{background:rgba(130,174,255,.2);border:2px solid rgba(130,174,255,.5);box-shadow:0 0 15px rgba(181,255,194,.2)}
+.prayer-card.aktif .p-name{color:var(--primary)}
+.prayer-card.berikutnya{background:rgba(253,144,0,.1);border:1px solid rgba(253,144,0,.3)}
+.prayer-card.berikutnya .p-name{color:var(--secondary)}
+.prayer-badge{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:8px;padding:2px 8px;border-radius:999px;font-weight:700;text-transform:uppercase;white-space:nowrap}
+.prayer-card.aktif .prayer-badge{background:var(--primary);color:#00214d}
+.prayer-card.berikutnya .prayer-badge{background:var(--secondary);color:#fff6f1}
+
+/* Smart Controls */
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.control-card{background:var(--surface);padding:1.25rem;border-radius:var(--radius-xl);border:1px solid rgba(68,72,79,.1)}
+.control-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem}
+.control-icon{width:3rem;height:3rem;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center}
+.control-icon.lamp{background:rgba(253,144,0,.1)}
+.control-icon.lamp .material-symbols-outlined{color:var(--secondary)}
+.control-icon.fan{background:rgba(130,174,255,.1)}
+.control-icon.fan .material-symbols-outlined{color:var(--primary)}
+.status-dot{width:8px;height:8px;border-radius:50%;transition:all .3s}
+.status-dot.on{background:var(--tertiary);box-shadow:0 0 8px var(--tertiary)}
+.status-dot.off{background:var(--outline);box-shadow:none}
+.control-name{font-weight:700;font-size:1.1rem;margin-bottom:1rem}
+.control-btns{display:flex;gap:.5rem}
+.ctrl-btn{flex:1;padding:.5rem;border-radius:var(--radius-sm);font-weight:700;font-size:.75rem;border:none;cursor:pointer;transition:all .2s}
+.ctrl-btn:active{transform:scale(.95)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed}
+.ctrl-btn.on-active{background:var(--tertiary-bright);color:#004820}
+.ctrl-btn.on-idle{background:var(--surface-highest);color:var(--outline)}
+.ctrl-btn.off-active{background:var(--error-container);color:var(--on-error-container)}
+.ctrl-btn.off-idle{background:var(--surface-highest);color:var(--outline)}
+
+/* Alarm Section */
+.alarm-section{background:var(--surface-high);border-radius:calc(var(--radius-xl) + .5rem);padding:1.5rem;border:1px solid rgba(68,72,79,.2)}
+.alarm-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem}
+.alarm-icon-circle{width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(130,174,255,.2);display:flex;align-items:center;justify-content:center}
+.alarm-icon-circle .material-symbols-outlined{color:var(--primary);font-size:1.2rem}
+.alarm-header h2{font-weight:700;font-size:1.1rem}
+input[type="time"]{appearance:none;-webkit-appearance:none;display:block;width:100%;max-width:100%;box-sizing:border-box !important;background:var(--surface-highest);border:1px solid var(--outline-variant);border-radius:var(--radius-md);padding:.75rem 1rem;color:var(--on-surface);font-size:1.2rem;font-weight:700;font-family:'Plus Jakarta Sans';text-align:center;letter-spacing:2px;margin-bottom:1rem;transition:border .2s}
+input[type="time"]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(130,174,255,.15)}
+input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(.5);cursor:pointer}
+.alarm-status-bar{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;padding:.75rem 1rem;background:var(--surface);border-radius:var(--radius-sm);font-size:.85rem;color:var(--on-surface-variant)}
+.alarm-ring-dot{width:8px;height:8px;border-radius:50%;background:var(--outline);transition:all .3s;flex-shrink:0}
+.alarm-ring-dot.aktif{background:var(--tertiary-bright);box-shadow:0 0 8px var(--tertiary-bright);animation:pulseDot 2s infinite}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.alarm-btns{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.alarm-btn{padding:1rem;border-radius:var(--radius-md);font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;transition:all .2s;font-family:'Plus Jakarta Sans';font-size:.9rem}
+.alarm-btn:active{transform:scale(.95)}
+.alarm-btn:disabled{opacity:.35;cursor:not-allowed}
+.alarm-btn.set{background:var(--primary);color:#000}
+.alarm-btn.off{background:#000;border:1px solid var(--outline-variant);color:var(--error)}
+
+/* Schedule Tab */
+.schedule-hero{position:relative;overflow:hidden;border-radius:var(--radius-xl);padding:2rem;border:1px solid rgba(255,255,255,.05)}
+.schedule-hero .glass-bg{position:absolute;inset:0;backdrop-filter:blur(20px);background:linear-gradient(135deg,rgba(21,26,33,.7),rgba(15,20,26,.4))}
+.schedule-hero .ghost-icon{position:absolute;top:0;right:0;padding:1rem;opacity:.1}
+.schedule-hero .ghost-icon .material-symbols-outlined{font-size:6rem}
+.schedule-hero .content{position:relative;z-index:1}
+.schedule-hero .sub{font-size:.8rem;color:var(--on-surface-variant);font-weight:500;letter-spacing:.15em;text-transform:uppercase;margin-bottom:.5rem}
+.schedule-hero .big-time{font-size:3.5rem;font-weight:800;letter-spacing:-.05em;line-height:1;margin-bottom:.75rem}
+.schedule-hero .big-time .ampm{font-size:1.2rem;color:var(--primary);margin-left:.5rem;font-weight:700}
+.schedule-status{display:flex;align-items:center;gap:.5rem;color:var(--tertiary)}
+.schedule-status .material-symbols-outlined{font-size:1rem}
+.schedule-status span{font-size:.85rem;font-weight:600}
+
+/* Schedule Cards */
+.schedule-add-form{background:var(--surface-high);border-radius:var(--radius-xl);padding:1.25rem;border:1px solid rgba(68,72,79,.2);display:flex;align-items:center;gap:.75rem}
+.schedule-add-form input[type="time"]{flex:1;margin-bottom:0}
+.schedule-add-btn{width:3rem;height:3rem;border-radius:50%;background:var(--primary);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.schedule-add-btn:active{transform:scale(.9)}
+.schedule-add-btn .material-symbols-outlined{color:#000;font-size:1.5rem}
+.schedule-list{display:flex;flex-direction:column;gap:.75rem}
+.schedule-item{background:var(--surface);border:1px solid rgba(68,72,79,.1);border-radius:var(--radius-lg);padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;transition:all .3s}
+.schedule-item.active-schedule{border-color:rgba(130,174,255,.4);background:rgba(130,174,255,.08)}
+.schedule-item-left{display:flex;align-items:center;gap:1rem}
+.schedule-item-dot{width:10px;height:10px;border-radius:50%;background:var(--outline);flex-shrink:0;transition:all .3s}
+.schedule-item.active-schedule .schedule-item-dot{background:var(--tertiary-bright);box-shadow:0 0 8px var(--tertiary-bright)}
+.schedule-item-time{font-size:1.5rem;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.schedule-item-label{font-size:.7rem;color:var(--outline);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.schedule-item-actions{display:flex;gap:.5rem}
+.sch-action-btn{width:2.25rem;height:2.25rem;border-radius:var(--radius-sm);border:1px solid var(--outline-variant);background:var(--surface-highest);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.sch-action-btn:active{transform:scale(.9)}
+.sch-action-btn .material-symbols-outlined{font-size:1rem}
+.sch-action-btn.del-btn{color:var(--error)}
+.sch-action-btn.del-btn:hover{background:rgba(255,113,108,.1);border-color:var(--error)}
+.sch-action-btn.play-btn{color:var(--tertiary-bright)}
+.sch-action-btn.play-btn:hover{background:rgba(63,255,139,.1);border-color:var(--tertiary-bright)}
+.schedule-empty{text-align:center;padding:2rem 1rem;color:var(--outline);font-size:.85rem}
+.schedule-empty .material-symbols-outlined{font-size:2.5rem;display:block;margin:0 auto .75rem;opacity:.4}
+
+/* Bottom Nav */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:rgba(10,14,20,.9);backdrop-filter:blur(24px);box-shadow:0 -10px 40px rgba(0,0,0,.6);padding:0 2rem}
+.bottom-nav .nav-inner{display:flex;justify-content:space-around;align-items:center;height:5.5rem;padding-bottom:1rem;max-width:480px;margin:0 auto}
+.nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--outline);opacity:.6;cursor:pointer;transition:all .3s;padding:.5rem 1.5rem;border-radius:var(--radius-md);border:none;background:none;font-family:'Plus Jakarta Sans'}
+.nav-item:active{transform:scale(.9)}
+.nav-item .material-symbols-outlined{margin-bottom:4px;font-size:1.4rem}
+.nav-item .nav-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.15em}
+.nav-item.active{color:var(--primary);opacity:1;background:rgba(130,174,255,.1);box-shadow:0 0 20px rgba(130,174,255,.15)}
+
+/* User email chip */
+.user-chip{display:flex;align-items:center;gap:.4rem;padding:.3rem .75rem;background:rgba(130,174,255,.08);border:1px solid rgba(130,174,255,.15);border-radius:999px;max-width:140px;overflow:hidden}
+.user-chip span{font-size:.7rem;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.user-chip .material-symbols-outlined{font-size:.9rem;color:var(--primary);flex-shrink:0}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .5s ease forwards}
+
+@media(max-width:420px){
+.clock-hero .time{font-size:3rem}
+.schedule-hero .big-time{font-size:2.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Auth Guard: shown while checking login state -->
+<div id="auth-guard">
+  <div class="guard-inner">
+    <div class="guard-spinner"></div>
+    <span class="guard-label">Memeriksa sesi...</span>
+  </div>
+</div>
+
+<!-- App Shell (hidden until auth confirmed) -->
+<div id="app-shell" style="display:none">
+
+
+
+<main>
+<!-- HOME TAB -->
+<div class="tab-content active" id="tab-home">
+<div class="section-gap">
+
+<!-- Clock Hero -->
+<section class="clock-hero fade-in">
+<div class="glow"></div>
+<div class="time">
+<span class="digit-w"><span class="digit" id="d0">-</span></span><span class="digit-w"><span class="digit" id="d1">-</span></span><span class="sep">:</span><span class="digit-w"><span class="digit" id="d2">-</span></span><span class="digit-w"><span class="digit" id="d3">-</span></span><span class="sep">:</span><span class="digit-w"><span class="digit" id="d4">-</span></span><span class="digit-w"><span class="digit" id="d5">-</span></span>
+</div>
+<p class="date" id="tanggal">--</p>
+</section>
+
+<!-- Weather -->
+<section class="glass fade-in" style="animation-delay:.1s" id="cuaca-section">
+<div id="cuaca-content"><div class="weather-loading">Memuat data cuaca...</div></div>
+</section>
+
+<!-- Prayer Times -->
+<section class="fade-in" style="animation-delay:.2s">
+<div class="section-title" style="margin-bottom:.75rem">
+<h2>Jadwal Sholat</h2>
+<span>Kota Surabaya</span>
+</div>
+<div id="sholat-content"><div class="weather-loading">Memuat jadwal sholat...</div></div>
+</section>
+
+<!-- Smart Controls -->
+<section class="fade-in" style="animation-delay:.3s">
+<div class="section-title" style="margin-bottom:.75rem"><h2>Smart Controls</h2></div>
+<div class="controls-grid">
+<div class="control-card">
+<div class="control-top">
+<div class="control-icon lamp"><span class="material-symbols-outlined mat-filled">lightbulb</span></div>
+<div class="status-dot off" id="status-lampu-dot"></div>
+</div>
+<p class="control-name">Lampu</p>
+<div class="control-btns">
+<button class="ctrl-btn on-active" onclick="kirimLampu('ON')" id="btn-on" disabled>ON</button>
+<button class="ctrl-btn off-idle" onclick="kirimLampu('OFF')" id="btn-off" disabled>OFF</button>
+</div>
+</div>
+<div class="control-card">
+<div class="control-top">
+<div class="control-icon fan"><span class="material-symbols-outlined">mode_fan</span></div>
+<div class="status-dot off" id="status-kipas-dot"></div>
+</div>
+<p class="control-name">Kipas</p>
+<div class="control-btns">
+<button class="ctrl-btn on-idle" onclick="kirimKipas('ON')" id="btn-kipas-on" disabled>ON</button>
+<button class="ctrl-btn off-active" onclick="kirimKipas('OFF')" id="btn-kipas-off" disabled>OFF</button>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Alarm -->
+<section class="alarm-section fade-in" style="animation-delay:.4s">
+<div class="alarm-header">
+<div class="alarm-icon-circle"><span class="material-symbols-outlined">alarm</span></div>
+<h2>Today's Alarm</h2>
+</div>
+<div class="alarm-status-bar">
+<div class="alarm-ring-dot" id="alarm-dot"></div>
+<span id="alarm-status-text">Alarm Mati</span>
+</div>
+<input type="time" id="waktu-alarm" value="00:00">
+<div class="alarm-btns">
+<button class="alarm-btn set" onclick="setAlarm()" id="btn-set" disabled><span class="material-symbols-outlined" style="font-size:18px">check_circle</span> Set Alarm</button>
+<button class="alarm-btn off" onclick="nonaktifkanAlarm()" id="btn-nonaktif" disabled><span class="material-symbols-outlined" style="font-size:18px">alarm_off</span> Matikan</button>
+</div>
+</section>
+
+</div>
+</div>
+
+<!-- SCHEDULE TAB -->
+<div class="tab-content" id="tab-schedule">
+<div class="section-gap">
+
+<section class="schedule-hero fade-in">
+<div class="glass-bg"></div>
+<div class="ghost-icon"><span class="material-symbols-outlined">alarm</span></div>
+<div class="content">
+<p class="sub">Alarm Selanjutnya</p>
+<div class="big-time" id="schedule-alarm-time">--:--<span class="ampm">WIB</span></div>
+<div class="schedule-status" id="schedule-alarm-status">
+<span class="material-symbols-outlined mat-filled" style="font-size:14px">info</span>
+<span>Belum ada alarm aktif</span>
+</div>
+</div>
+</section>
+
+<section class="fade-in" style="animation-delay:.1s">
+<div class="section-title" style="margin-bottom:.75rem"><h2>Tambah Alarm</h2></div>
+<div class="schedule-add-form">
+<input type="time" id="schedule-time-input" value="06:00">
+<button class="schedule-add-btn" onclick="addSchedule()"><span class="material-symbols-outlined">add</span></button>
+</div>
+</section>
+
+<section class="fade-in" style="animation-delay:.2s">
+<div class="section-title" style="margin-bottom:.75rem"><h2>Daftar Alarm</h2><span id="schedule-count">0 alarm</span></div>
+<div id="schedule-list-container"></div>
+</section>
+
+</div>
+</div>
+
+<!-- PROFILE TAB -->
+<div class="tab-content" id="tab-profile">
+<div class="section-gap">
+
+<section class="schedule-hero fade-in" style="min-height: 65vh; display: flex; flex-direction: column; justify-content: center;">
+<div class="glass-bg"></div>
+<div class="content" style="text-align: center; display: flex; flex-direction: column; align-items: center; padding: 2rem 0;">
+  <div class="avatar" style="width: 7rem; height: 7rem; margin-bottom: 2rem; border-width: 3px;">
+    <span class="material-symbols-outlined mat-filled" style="font-size: 4rem;">person</span>
+  </div>
+  <h2 id="profile-user-display" style="font-size: 2.2rem; font-weight: 800; color: var(--on-surface); margin-bottom: 0.5rem; letter-spacing: -0.5px;">User</h2>
+  <div class="user-chip" style="margin: 0 auto 3.5rem; max-width: none; border: none; background: rgba(255,255,255,.05); padding: 0.5rem 1rem;">
+    <span class="material-symbols-outlined" style="font-size: 1.2rem;">mail</span>
+    <span id="profile-user-email-chip" style="font-size: .95rem;">--</span>
+  </div>
+  
+  <button class="alarm-btn off" onclick="logoutUser()" style="width: 100%; max-width: 250px; margin: 0 auto; background: rgba(255,113,108,.1); color: var(--error); border: 1px solid rgba(255,113,108,.2); padding: 1.25rem; font-size: 1rem; border-radius: var(--radius-xl);">
+    <span class="material-symbols-outlined">logout</span> Logout
+  </button>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+<div class="nav-inner">
+<button class="nav-item active" onclick="switchTab('home')" id="nav-home">
+<span class="material-symbols-outlined">home</span>
+<span class="nav-label">Home</span>
+</button>
+<button class="nav-item" onclick="switchTab('schedule')" id="nav-schedule">
+<span class="material-symbols-outlined">alarm</span>
+<span class="nav-label">Alarm</span>
+</button>
+<button class="nav-item" onclick="switchTab('profile')" id="nav-profile">
+<span class="material-symbols-outlined">person</span>
+<span class="nav-label">Profile</span>
+</button>
+</div>
+</nav>
+
+</div><!-- end #app-shell -->
+
+<!-- ═══════════════════════════════════════════════════
+     FIREBASE AUTH — ganti firebaseConfig dengan milikmu
+     ═══════════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+  // ⚠️  GANTI dengan config Firebase project kamu
+  const firebaseConfig = {
+    apiKey: "AIzaSyCniLIgUlE3jM3WVQUk-AUR-_d9Q-2ctXc",
+    authDomain: "smartkos-cb3ac.firebaseapp.com",
+    databaseURL: "https://smartkos-cb3ac-default-rtdb.firebaseio.com",
+    projectId: "smartkos-cb3ac",
+    storageBucket: "smartkos-cb3ac.firebasestorage.app",
+    messagingSenderId: "327501663967",
+    appId: "1:327501663967:web:6a2ada9421a95d90faa36a",
+    measurementId: "G-9J4B821KT8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // Expose logout ke window agar bisa dipanggil dari onclick
+  window.logoutUser = async () => {
+    if (!confirm('Yakin ingin keluar?')) return;
+    try {
+      await signOut(auth);
+      // Setelah ini, onAuthStateChanged akan otomatis mendeteksi status null 
+      // dan mengarahkan ke login.html
+    } catch (e) {
+      alert('Gagal logout: ' + e.message);
+    }
+  };
+
+  // ── Auth Guard ──
+  onAuthStateChanged(auth, (user) => {
+    const guard = document.getElementById('auth-guard');
+    const shell = document.getElementById('app-shell');
+
+    if (user) {
+      // ✅ User login — tampilkan app, sembunyikan guard
+      if (guard) guard.style.display = 'none';
+      if (shell) shell.style.display = 'block';
+
+      // Tampilkan info user
+      const email = user.email || 'User';
+      const displayName = email.split('@')[0];
+      
+      const userDisplay = document.getElementById('profile-user-display');
+      const emailChip = document.getElementById('profile-user-email-chip');
+      
+      if (userDisplay) userDisplay.innerText = displayName;
+      if (emailChip) emailChip.innerText = email;
+
+    } else {
+      // ❌ Tidak ada sesi — langsung redirect
+      window.location.replace('login.html'); 
+      // Pakai .replace agar user tidak bisa klik "Back" kembali ke dashboard
+    }
+  });
+</script>
+
+<!-- ═══════════════════════════════════════════════
+     APP LOGIC (sama seperti sebelumnya)
+     ═══════════════════════════════════════════════ -->
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+}
+function setLampuUI(state) {
+  const dot = document.getElementById('status-lampu-dot');
+  const btnOn = document.getElementById('btn-on');
+  const btnOff = document.getElementById('btn-off');
+  dot.className = 'status-dot ' + (state === 'ON' ? 'on' : 'off');
+  if (state === 'ON') { btnOn.className='ctrl-btn on-active'; btnOff.className='ctrl-btn off-idle'; }
+  else { btnOn.className='ctrl-btn on-idle'; btnOff.className='ctrl-btn off-active'; }
+}
+function setKipasUI(state) {
+  const dot = document.getElementById('status-kipas-dot');
+  const btnOn = document.getElementById('btn-kipas-on');
+  const btnOff = document.getElementById('btn-kipas-off');
+  dot.className = 'status-dot ' + (state === 'ON' ? 'on' : 'off');
+  if (state === 'ON') { btnOn.className='ctrl-btn on-active'; btnOff.className='ctrl-btn off-idle'; }
+  else { btnOn.className='ctrl-btn on-idle'; btnOff.className='ctrl-btn off-active'; }
+}
+let isInitialKipasSetup = false;
+function setKipasStatus(state, save) {
+  const s = state === 'ON' ? 'ON' : 'OFF';
+  setKipasUI(s);
+  if (save) localStorage.setItem('statusKipas', s);
+}
+function kirimLampu(state) {
+  if (!client.connected) { alert('Koneksi terputus.'); return; }
+  client.publish('smartkos/lampu', state);
+  localStorage.setItem('statusLampu', state);
+  setLampuUI(state);
+}
+function kirimKipas(state) {
+  if (!client.connected) { alert('Koneksi terputus.'); return; }
+  client.publish('smartkos/kipas', state);
+  setKipasStatus(state, true);
+}
+function syncAlarmUI(waktu, isActive) {
+  const dotEl = document.getElementById('alarm-dot');
+  const textEl = document.getElementById('alarm-status-text');
+  const inputEl = document.getElementById('waktu-alarm');
+  if (isActive && waktu) {
+    if (dotEl) dotEl.className = 'alarm-ring-dot aktif';
+    if (textEl) textEl.innerText = 'Aktif · ' + waktu + ' WIB';
+    if (inputEl) inputEl.value = waktu;
+  } else {
+    if (dotEl) dotEl.className = 'alarm-ring-dot';
+    if (textEl) textEl.innerText = 'Alarm Mati';
+  }
+}
+function setAlarm(silent = false) {
+  const waktu = document.getElementById('waktu-alarm').value;
+  if (!waktu) { if(!silent) alert('Silakan pilih waktu alarm'); return; }
+  if (typeof client === 'undefined' || !client.connected) { if(!silent) alert('Koneksi terputus.'); return; }
+  client.publish('smartkos/alarm', "HOME_" + waktu);
+  localStorage.setItem('alarmWaktu', waktu);
+  syncAlarmUI(waktu, true);
+}
+function nonaktifkanAlarm(silent = false) {
+  if (typeof client === 'undefined' || !client.connected) { if(!silent) alert('Koneksi terputus.'); return; }
+  client.publish('smartkos/alarm', 'HOME_OFF');
+  localStorage.removeItem('alarmWaktu');
+  syncAlarmUI(null, false);
+}
+let schedules = JSON.parse(localStorage.getItem('alarmSchedules') || '[]');
+function saveSchedules() { localStorage.setItem('alarmSchedules', JSON.stringify(schedules)); renderSchedules(); updateNextAlarm(); }
+function addSchedule() {
+  const time = document.getElementById('schedule-time-input').value;
+  if (!time) { alert('Pilih waktu terlebih dahulu!'); return; }
+  if (schedules.some(s => s.time === time)) { alert('Jadwal untuk waktu ini sudah ada!'); return; }
+  schedules.push({ id: 'sch_' + Date.now(), time: time, active: true });
+  schedules.sort((a, b) => a.time.localeCompare(b.time));
+  saveSchedules();
+}
+function toggleSchedule(id) { const sch = schedules.find(s => s.id === id); if (sch) { sch.active = !sch.active; saveSchedules(); updateNextAlarm(); } }
+function removeSchedule(id) { schedules = schedules.filter(s => s.id !== id); saveSchedules(); updateNextAlarm(); }
+function renderSchedules() {
+  const container = document.getElementById('schedule-list-container');
+  const countEl = document.getElementById('schedule-count');
+  if (!container || !countEl) return;
+  countEl.innerText = schedules.length + ' alarm';
+  if (schedules.length === 0) {
+    container.innerHTML = '<div class="schedule-empty"><span class="material-symbols-outlined">schedule</span>Belum ada jadwal tersimpan.<br>Tambah jadwal di atas.</div>'; return;
+  }
+  container.innerHTML = schedules.map(sch => `
+    <div class="schedule-item ${sch.active ? 'active-schedule' : ''}">
+      <div class="schedule-item-left">
+        <div class="schedule-item-dot"></div>
+        <div>
+          <div class="schedule-item-time">${sch.time}</div>
+          <div class="schedule-item-label">${sch.active ? 'Aktif' : 'Nonaktif'}</div>
+        </div>
+      </div>
+      <div class="schedule-item-actions">
+        <button class="sch-action-btn ${sch.active ? 'del-btn' : 'play-btn'}" onclick="toggleSchedule('${sch.id}')" title="${sch.active ? 'Nonaktifkan' : 'Aktifkan'}">
+          <span class="material-symbols-outlined">${sch.active ? 'pause' : 'play_arrow'}</span>
+        </button>
+        <button class="sch-action-btn del-btn" onclick="removeSchedule('${sch.id}')" title="Hapus">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+function updateNextAlarm() {
+  const activeSchedules = schedules.filter(s => s.active);
+  const heroTime = document.getElementById('schedule-alarm-time');
+  const heroStatus = document.getElementById('schedule-alarm-status');
+  if (activeSchedules.length === 0) {
+    if (heroTime) heroTime.innerHTML = '--:--<span class="ampm">WIB</span>';
+    if (heroStatus) heroStatus.innerHTML = '<span class="material-symbols-outlined mat-filled" style="font-size:14px">info</span><span>Belum ada jadwal aktif</span>';
+    if (typeof client !== 'undefined' && client.connected) client.publish('smartkos/alarm', 'SCH_OFF');
+    return;
+  }
+  const now = new Date();
+  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  let nextAlarm = activeSchedules.find(s => s.time > currentTime);
+  if (!nextAlarm) nextAlarm = activeSchedules[0];
+  if (heroTime) heroTime.innerHTML = nextAlarm.time + '<span class="ampm">WIB</span>';
+  if (heroStatus) heroStatus.innerHTML = '<span class="material-symbols-outlined mat-filled" style="font-size:14px;color:var(--tertiary)">check_circle</span><span style="color:var(--tertiary)">Alarm Aktif</span>';
+  if (typeof client !== 'undefined' && client.connected) client.publish('smartkos/alarm', "SCH_" + nextAlarm.time);
+}
+
+// Init LocalStorage
+if (localStorage.getItem('versi') !== '3') { localStorage.removeItem('statusKipas'); localStorage.removeItem('alarmWaktu'); localStorage.removeItem('alarmSkipDate'); localStorage.setItem('versi', '3'); }
+const savedLampu = localStorage.getItem('statusLampu');
+if (savedLampu) setLampuUI(savedLampu);
+if (localStorage.getItem('statusKipas') === null) { localStorage.setItem('statusKipas', 'ON'); isInitialKipasSetup = true; }
+setKipasStatus(localStorage.getItem('statusKipas'), false);
+
+// MQTT
+const broker = 'wss://276d9e54084e4a99b7b863492b06212b.s1.eu.hivemq.cloud:8884/mqtt';
+const options = { username: 'Rafifirdaus', password: '@Gresik123', clientId: 'webClient_' + Math.random().toString(16).substr(2, 8) };
+const client = mqtt.connect(broker, options);
+const allBtns = ['btn-on','btn-off','btn-kipas-on','btn-kipas-off','btn-set','btn-nonaktif'];
+client.on('connect', () => {
+  allBtns.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
+  client.subscribe('smartkos/status');
+  if (isInitialKipasSetup) { client.publish('smartkos/kipas', 'ON'); isInitialKipasSetup = false; }
+});
+client.on('disconnect', () => { allBtns.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = true; }); });
+client.on('error', () => { allBtns.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = true; }); });
+client.on('message', (topic, message) => {
+  if (topic !== 'smartkos/status') return;
+  const statusAlarm = message.toString();
+  if (statusAlarm === 'ALARM_HOME_BUNYI') { setKipasStatus('OFF', true); }
+  else if (statusAlarm === 'ALARM_SCH_BUNYI') { setKipasStatus('ON', true); }
+});
+
+renderSchedules(); updateNextAlarm();
+const savedAlarm = localStorage.getItem('alarmWaktu');
+if (savedAlarm) { syncAlarmUI(savedAlarm, true); }
+
+// Clock
+let prevDigits = ['','','','','',''];
+function updateJam() {
+  const now = new Date();
+  const jamStr = new Intl.DateTimeFormat('id-ID', { timeZone:'Asia/Jakarta', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(now).replace(/\./g,':').replace(/:/g,'');
+  jamStr.split('').forEach((digit, i) => {
+    if (digit !== prevDigits[i]) {
+      const el = document.getElementById('d' + i);
+      el.classList.remove('slide-in'); void el.offsetWidth;
+      el.textContent = digit; el.classList.add('slide-in');
+      prevDigits[i] = digit;
+    }
+  });
+  const tgl = new Intl.DateTimeFormat('id-ID', { timeZone:'Asia/Jakarta', weekday:'long', day:'numeric', month:'long', year:'numeric' }).format(now);
+  document.getElementById('tanggal').innerText = tgl;
+}
+setInterval(updateJam, 1000); updateJam();
+
+// Weather
+const WEATHER_KEY = 'fcf807bd760344b5a57124817261204';
+const CUACA_URL = 'https://api.weatherapi.com/v1/current.json?key=' + WEATHER_KEY + '&q=Surabaya&lang=id';
+function weatherIcon(code, isDay) {
+  if (code === 1000) return isDay ? '☀️' : '🌙';
+  if (code === 1003) return '⛅';
+  if ([1006,1009].includes(code)) return '☁️';
+  if ([1030,1135,1147].includes(code)) return '🌫️';
+  if ([1063,1150,1153,1168,1171,1180,1183].includes(code)) return '🌦️';
+  if ([1186,1189,1192,1195,1198,1201,1240,1243,1246].includes(code)) return '🌧️';
+  if ([1087,1273,1276,1279,1282].includes(code)) return '⛈️';
+  return '🌡️';
+}
+async function ambilCuaca() {
+  const el = document.getElementById('cuaca-content');
+  el.innerHTML = '<div class="weather-loading">Memuat data cuaca...</div>';
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(CUACA_URL, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('Gagal');
+    const data = await res.json();
+    const c = data.current;
+    const suhu = Math.round(c.temp_c), rasaSuhu = Math.round(c.feelslike_c), humidity = Math.round(c.humidity), angin = Math.round(c.wind_kph), vis = Math.round(c.vis_km);
+    const kondisi = c.condition.text, icon = weatherIcon(c.condition.code, c.is_day);
+    function humidityNote(h){return h>80?'Lembap':h>50?'Normal':'Kering';}
+    function windNote(w){return w>40?'Kencang':w>20?'Sedang':'Tenang';}
+    function visNote(v){return v>8?'Cerah':v>4?'Sedang':'Kabur';}
+    function feelsNote(f){return f>35?'Panas':f>28?'Hangat':'Sejuk';}
+    el.innerHTML = '<div class="weather-card"><div class="weather-top"><div class="weather-main"><span class="weather-icon">' + icon + '</span><div class="weather-temp">' + suhu + '<sup>°C</sup></div></div><div class="weather-info"><div class="weather-cond">' + kondisi + '</div><div class="weather-feels">Terasa ' + rasaSuhu + '°C</div></div></div><div class="weather-grid"><div class="weather-stat"><span class="weather-stat-label">Humidity</span><span class="weather-stat-val">' + humidity + '%</span><span class="weather-stat-note">' + humidityNote(humidity) + '</span></div><div class="weather-stat"><span class="weather-stat-label">Angin</span><span class="weather-stat-val">' + angin + ' km/j</span><span class="weather-stat-note">' + windNote(angin) + '</span></div><div class="weather-stat"><span class="weather-stat-label">Visibility</span><span class="weather-stat-val">' + vis + ' km</span><span class="weather-stat-note">' + visNote(vis) + '</span></div><div class="weather-stat"><span class="weather-stat-label">Terasa</span><span class="weather-stat-val">' + rasaSuhu + '°</span><span class="weather-stat-note">' + feelsNote(rasaSuhu) + '</span></div></div></div>';
+  } catch (e) {
+    el.innerHTML = '<div class="weather-loading" style="color:var(--error)">Gagal memuat cuaca.</div>';
+  }
+}
+ambilCuaca(); setInterval(ambilCuaca, 10 * 60 * 1000);
+
+// Prayer Times
+let sholatData = [];
+function hitungSholat() {
+  const LAT=-7.2575,LON=112.7521,TZ=7,FAJR_ANG=20,ISHA_ANG=18;
+  const now=new Date(),Y=now.getFullYear(),M=now.getMonth()+1,D=now.getDate();
+  const JD=Math.floor(365.25*(Y+4716))+Math.floor(30.6001*(M+1))+D+2-Math.floor(Y/100)+Math.floor(Math.floor(Y/100)/4)-1524.5;
+  const T=(JD-2451545)/36525;
+  const L0=(280.46646+36000.76983*T)%360;
+  const M2=(357.52911+35999.05029*T-0.0001537*T*T)*Math.PI/180;
+  const C=(1.914602-0.004817*T)*Math.sin(M2)+0.019993*Math.sin(2*M2);
+  const SL=(L0+C)*Math.PI/180;
+  const OB=(23.439291-0.013004*T)*Math.PI/180;
+  const RA=Math.atan2(Math.cos(OB)*Math.sin(SL),Math.cos(SL))*180/Math.PI;
+  const DEC=Math.asin(Math.sin(OB)*Math.sin(SL));
+  const EQT=(L0-0.0057183-RA+(125.04-1934.136*T)*Math.PI/180*(-0.00478*Math.sin((125.04-1934.136*T)*Math.PI/180)-0.00417*Math.sin(2*L0*Math.PI/180)))*4;
+  const TRANSIT=12+TZ-LON/15-EQT/60;
+  function hourAngle(a){const ar=a*Math.PI/180,lr=LAT*Math.PI/180,ch=(Math.sin(ar)-Math.sin(lr)*Math.sin(DEC))/(Math.cos(lr)*Math.cos(DEC));if(ch<-1||ch>1)return null;return Math.acos(ch)*180/Math.PI/15;}
+  function asrHA(s){const lr=LAT*Math.PI/180,a=Math.atan(1/(s+Math.tan(Math.abs(lr-DEC)))),ch=(Math.sin(a)-Math.sin(lr)*Math.sin(DEC))/(Math.cos(lr)*Math.cos(DEC));if(ch<-1||ch>1)return null;return Math.acos(ch)*180/Math.PI/15;}
+  function toHHMM(d){if(d===null)return'--:--';d=((d%24)+24)%24;let h=Math.floor(d),m=Math.round((d-h)*60);if(m===60){h++;m=0;}return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+  return[{nama:'Subuh',waktu:toHHMM(TRANSIT-hourAngle(-FAJR_ANG))},{nama:'Dzuhur',waktu:toHHMM(TRANSIT+0.017)},{nama:'Ashar',waktu:toHHMM(TRANSIT+asrHA(1))},{nama:'Maghrib',waktu:toHHMM(TRANSIT+hourAngle(-0.8333)+0.033)},{nama:'Isya',waktu:toHHMM(TRANSIT+hourAngle(-ISHA_ANG))}];
+}
+function tampilSholat() {
+  const el = document.getElementById('sholat-content');
+  try {
+    sholatData = hitungSholat();
+    const now = new Date();
+    const jamNow = now.toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false}).replace('.',':');
+    let idxAktif = -1;
+    for (let i = sholatData.length-1; i >= 0; i--) { if (jamNow >= sholatData[i].waktu) { idxAktif = i; break; } }
+    const idxNext = (idxAktif+1) % sholatData.length;
+    const cards = sholatData.map((s,i) => {
+      const active = i === idxAktif, next = i === idxNext;
+      let cls = 'prayer-card', badge = '';
+      if (active) { cls += ' aktif'; badge = '<div class="prayer-badge">Sekarang</div>'; }
+      else if (next) { cls += ' berikutnya'; badge = '<div class="prayer-badge">Berikutnya</div>'; }
+      return '<div class="'+cls+'">'+badge+'<p class="p-name">'+s.nama+'</p><p class="p-time">'+s.waktu+'</p></div>';
+    }).join('');
+    el.innerHTML = '<div class="prayer-scroll">'+cards+'</div>';
+  } catch(e) { el.innerHTML = '<div class="weather-loading" style="color:var(--error)">Gagal menghitung jadwal.</div>'; }
+}
+tampilSholat(); setInterval(tampilSholat, 60*1000);
+</script>
+</body>
+</html>

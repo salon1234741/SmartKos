@@ -1,0 +1,1020 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Ropiul</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #060b14;
+      --surface: #0d1526;
+      --surface-2: #111d33;
+      --surface-3: #162038;
+      --border: rgba(255,255,255,0.07);
+      --border-accent: rgba(99,179,237,0.18);
+      --text: #e8f0fe;
+      --text-muted: #4a6080;
+      --text-dim: #7a94b8;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59,130,246,0.25);
+      --green: #22c55e;
+      --green-glow: rgba(34,197,94,0.2);
+      --red: #ef4444;
+      --red-glow: rgba(239,68,68,0.2);
+      --yellow: #f59e0b;
+      --cyan: #22d3ee;
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 28px 16px 40px;
+      gap: 14px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: -30%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .app-title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text);
+      line-height: 1.1;
+      display: flex;
+      gap: 0;
+    }
+
+    /* ── Blur Text Animation ── */
+    .blur-char {
+      display: inline-block;
+      opacity: 0;
+      filter: blur(12px);
+      transform: translateY(-20px);
+      animation: blurReveal 0.5s ease forwards;
+    }
+
+    @keyframes blurReveal {
+      0%   { opacity: 0; filter: blur(12px); transform: translateY(-20px); }
+      60%  { opacity: 0.7; filter: blur(3px);  transform: translateY(3px); }
+      100% { opacity: 1;   filter: blur(0px);  transform: translateY(0); }
+    }
+
+    /* Float animation after reveal */
+    .blur-char.done {
+      animation: blurReveal 0.5s ease forwards, floatTitle 4s ease-in-out infinite;
+    }
+
+    @keyframes floatTitle {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-4px); }
+    }
+
+    /* Space between words */
+    .blur-space {
+      display: inline-block;
+      width: 0.4em;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: linear-gradient(145deg, var(--surface) 0%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      position: relative;
+      z-index: 1;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.35s ease;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(26px) scale(0.99);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.16), 0 0 0 1px rgba(59,130,246,0.04);
+      animation: cardEntrance 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+                 cardFloat 7.5s ease-in-out 1.2s infinite;
+      will-change: transform, opacity;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    }
+
+    .card:hover {
+      border-color: var(--border-accent);
+      box-shadow: 0 28px 70px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.08);
+      transform: translateY(-4px) scale(1.005);
+    }
+
+    .card:nth-child(2) { animation-delay: 0.08s, 1.28s; }
+    .card:nth-child(3) { animation-delay: 0.16s, 1.36s; }
+    .card:nth-child(4) { animation-delay: 0.24s, 1.44s; }
+    .card:nth-child(5) { animation-delay: 0.32s, 1.52s; }
+    .card:nth-child(6) { animation-delay: 0.40s, 1.60s; }
+    .card:nth-child(7) { animation-delay: 0.48s, 1.68s; }
+
+    @keyframes cardEntrance {
+      0% {
+        opacity: 0;
+        transform: translateY(26px) scale(0.98);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes cardFloat {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-6px); }
+    }
+
+    .card-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .card-title .title-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      width: auto;
+      height: auto;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    /* ── Clock Card ── */
+    .clock-card {
+      background: linear-gradient(145deg, #0d1526 0%, #0e1b32 100%);
+      border-color: rgba(99,179,237,0.12);
+    }
+
+    .jam-box { text-align: center; padding: 6px 0; }
+
+    /* Tanggal di atas */
+    .jam-tanggal {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .jam-angka {
+      font-size: 60px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .digit-wrapper {
+      display: inline-block;
+      overflow: hidden;
+      height: 1.15em;
+      vertical-align: bottom;
+    }
+
+    .digit { display: block; }
+    .digit.slide-in { animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+    @keyframes slideUp {
+      from { transform: translateY(-40%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .sep {
+      margin: 0 3px;
+      line-height: 1.15em;
+      color: rgba(255,255,255,0.25);
+      font-weight: 300;
+    }
+
+    /* ── Weather Card ── */
+    .cuaca-box {
+      background: linear-gradient(160deg, #0b1324 0%, #0f1a30 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 18px 36px rgba(0,0,0,0.14);
+      opacity: 0;
+      transform: translateY(18px);
+      animation: fadeUp 0.65s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .cuaca-box { animation-delay: 0.16s; }
+
+    .cuaca-left {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .cuaca-top {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cuaca-suhu {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+
+    .cuaca-feels {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .cuaca-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .cuaca-icon-kondisi {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .cuaca-icon { font-size: 48px; line-height: 1; }
+
+    .cuaca-kondisi {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+    }
+
+    .cuaca-detail-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cuaca-detail-item {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cuaca-loading {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    /* ── Prayer Card ── */
+    .sholat-cards-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .sholat-cards-row::-webkit-scrollbar { display: none; }
+
+    .sholat-card {
+      flex: 1;
+      min-width: 70px;
+      background: linear-gradient(160deg, #0d172b 0%, #111f34 100%);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-sm);
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      cursor: default;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: fadeUp 0.55s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .sholat-card:hover { transform: translateY(-3px); }
+
+    .sholat-cards-row .sholat-card:nth-child(1) { animation-delay: 0.18s; }
+    .sholat-cards-row .sholat-card:nth-child(2) { animation-delay: 0.26s; }
+    .sholat-cards-row .sholat-card:nth-child(3) { animation-delay: 0.34s; }
+    .sholat-cards-row .sholat-card:nth-child(4) { animation-delay: 0.42s; }
+    .sholat-cards-row .sholat-card:nth-child(5) { animation-delay: 0.50s; }
+
+    .sholat-card.aktif {
+      background: linear-gradient(160deg, #1a3a6e 0%, #1d4ed8 100%);
+      border-color: rgba(59,130,246,0.5);
+      box-shadow: 0 8px 24px rgba(29,78,216,0.35);
+    }
+
+    .sholat-card.berikutnya {
+      border-color: rgba(34,211,238,0.35);
+      background: rgba(34,211,238,0.06);
+    }
+
+    .s-nama {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .sholat-card.aktif .s-nama { color: #bfdbfe; }
+    .sholat-card.berikutnya .s-nama { color: #67e8f9; }
+
+    .s-waktu {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sholat-card.aktif .s-waktu { color: #fff; }
+    .sholat-card.berikutnya .s-waktu { color: #38bdf8; }
+
+    .s-badge {
+      font-size: 9px;
+      color: transparent;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      height: 14px;
+    }
+    .sholat-card.aktif .s-badge { color: #93c5fd; }
+    .sholat-card.berikutnya .s-badge { color: #7dd3fc; }
+
+    /* ── Device Cards ── */
+    .device-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .device-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .device-icon {
+      font-size: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--red);
+      box-shadow: none;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .status-indicator.on {
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(34,197,94,0.35);
+    }
+
+    .status-indicator.off {
+      background: var(--red);
+      box-shadow: 0 0 4px rgba(239,68,68,0.25);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  letter-spacing: 0.04em;
+}
+
+button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+button:active { transform: scale(0.97); filter: brightness(0.9); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-on       { background: #03a43e; color: #fff; }
+.btn-off      { background: #c30404; color: #fff; }
+.btn-set      { background: #3b82f6; color: #fff; grid-column: span 1; }
+.btn-nonaktif { background: #64748b; color: #fff; }
+
+    /* ── Alarm Card ── */
+    .alarm-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .alarm-time-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="time"] {
+      flex: 1;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 700;
+      font-family: 'Inter', Arial, sans-serif;
+      text-align: center;
+      transition: border-color 0.2s ease;
+      letter-spacing: 2px;
+    }
+
+    input[type="time"]:focus {
+      outline: none;
+      border-color: rgba(59,130,246,0.5);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.5);
+      cursor: pointer;
+    }
+
+    .alarm-info-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .alarm-info-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .alarm-ring-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .alarm-ring-dot.aktif {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .alarm-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    footer.footer {
+      font-size: 11px;
+      color: #1e2d45;
+      font-weight: 500;
+      position: relative;
+      z-index: 1;
+      margin-top: 4px;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+
+    @media (max-width: 420px) {
+      .app-title { font-size: 22px; }
+      .jam-angka { font-size: 52px; }
+      .cuaca-suhu { font-size: 40px; }
+      .s-waktu { font-size: 16px; }
+      .cuaca-icon { font-size: 40px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="app-title" id="app-title"></div>
+
+  <!-- Clock Card -->
+  <div class="card clock-card">
+    <div class="jam-box">
+      <div class="jam-tanggal" id="tanggal">--</div>
+      <div class="jam-angka">
+        <span class="digit-wrapper"><span class="digit" id="d0">-</span></span>
+        <span class="digit-wrapper"><span class="digit" id="d1">-</span></span>
+        <span class="sep">:</span>
+        <span class="digit-wrapper"><span class="digit" id="d2">-</span></span>
+        <span class="digit-wrapper"><span class="digit" id="d3">-</span></span>
+        <span class="sep">:</span>
+        <span class="digit-wrapper"><span class="digit" id="d4">-</span></span>
+        <span class="digit-wrapper"><span class="digit" id="d5">-</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weather Card -->
+  <div class="card">
+    <p class="card-title"><span class="title-icon">🌤️</span> Cuaca — Kota Surabaya</p>
+    <div id="cuaca-content"><div class="cuaca-loading">Memuat data cuaca...</div></div>
+  </div>
+
+  <!-- Prayer Times Card -->
+  <div class="card">
+    <p class="card-title"><span class="title-icon">🕌</span> Jadwal Sholat — Kota Surabaya</p>
+    <div id="sholat-content"><div class="cuaca-loading">Memuat jadwal sholat...</div></div>
+  </div>
+
+  <!-- Lamp Card -->
+  <div class="card">
+    <div class="device-header">
+      <div class="device-title">
+        <div class="device-icon">💡</div>
+        Lampu
+      </div>
+      <div class="status-indicator off" id="status-lampu-dot"></div>
+    </div>
+    <div class="buttons">
+      <button class="btn-on" onclick="kirimLampu('ON')" id="btn-on" disabled>ON</button>
+      <button class="btn-off" onclick="kirimLampu('OFF')" id="btn-off" disabled>OFF</button>
+    </div>
+  </div>
+
+  <!-- Fan Card -->
+  <div class="card">
+    <div class="device-header">
+      <div class="device-title">
+        <div class="device-icon">💨</div>
+        Kipas
+      </div>
+      <div class="status-indicator off" id="status-kipas-dot"></div>
+    </div>
+    <div class="buttons">
+      <button class="btn-on" onclick="kirimKipas('ON')" id="btn-kipas-on" disabled>ON</button>
+      <button class="btn-off" onclick="kirimKipas('OFF')" id="btn-kipas-off" disabled>OFF</button>
+    </div>
+  </div>
+
+  <!-- Alarm Card -->
+  <div class="card">
+    <p class="card-title"><span class="title-icon">⏰</span> Alarm</p>
+    <div class="alarm-body">
+      <div class="alarm-info-bar">
+        <div class="alarm-info-left">
+          <div class="alarm-ring-dot" id="alarm-dot"></div>
+          <span id="alarm-status-text">Alarm Mati</span>
+        </div>
+      </div>
+      <div class="alarm-time-row">
+        <input type="time" id="waktu-alarm" value="00:00">
+      </div>
+      <div class="alarm-actions">
+        <button class="btn-set" onclick="setAlarm()" id="btn-set" disabled>Set Alarm</button>
+        <button class="btn-nonaktif" onclick="nonaktifkanAlarm()" id="btn-nonaktif" disabled>Matikan Alarm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Blur Text Animation ──────────────────────────
+    function initBlurTitle() {
+      const el = document.getElementById('app-title');
+      const text = 'Dashboard Ropiul';
+      const totalChars = text.replace(/ /g, '').length;
+      let charIndex = 0;
+      let doneCount = 0;
+
+      text.split('').forEach((char, i) => {
+        if (char === ' ') {
+          el.appendChild(document.createTextNode('\u00A0'));
+          return;
+        }
+
+        const span = document.createElement('span');
+        span.className = 'blur-char';
+        span.textContent = char;
+
+        // Stagger delay per huruf
+        const delayMs = charIndex * 60;
+        span.style.animationDelay = delayMs + 'ms';
+
+        // Setelah animasi masuk selesai, tambah float
+        const revealDuration = 500 + delayMs;
+        setTimeout(() => {
+          span.classList.add('done');
+          // Float tiap huruf sedikit beda phase
+          span.style.animationDelay = (charIndex * 0.15) + 's';
+        }, revealDuration);
+
+        el.appendChild(span);
+        charIndex++;
+      });
+    }
+
+    initBlurTitle();
+
+    // ── Helpers ──────────────────────────────────────
+    function setLampuUI(state) {
+      const dot = document.getElementById('status-lampu-dot');
+      dot.className = 'status-indicator ' + (state === 'ON' ? 'on' : 'off');
+    }
+
+    function setKipasUI(state) {
+      const dot = document.getElementById('status-kipas-dot');
+      dot.className = 'status-indicator ' + (state === 'ON' ? 'on' : 'off');
+    }
+
+    let isInitialKipasSetup = false;
+    function setKipasStatus(state, save) {
+      const s = state === 'ON' ? 'ON' : 'OFF';
+      setKipasUI(s);
+      if (save) localStorage.setItem('statusKipas', s);
+    }
+
+    function kirimLampu(state) {
+      if (!client.connected) { alert('Koneksi terputus.'); return; }
+      client.publish('smartkos/lampu', state);
+      localStorage.setItem('statusLampu', state);
+      setLampuUI(state);
+    }
+
+    function kirimKipas(state) {
+      if (!client.connected) { alert('Koneksi terputus.'); return; }
+      client.publish('smartkos/kipas', state);
+      setKipasStatus(state, true);
+    }
+
+    function setAlarm() {
+      const waktu = document.getElementById('waktu-alarm').value;
+      if (!waktu) { alert('Silakan pilih waktu alarm'); return; }
+      if (!client.connected) { alert('Koneksi terputus.'); return; }
+      client.publish('smartkos/alarm', waktu);
+      localStorage.setItem('alarmWaktu', waktu);
+      document.getElementById('alarm-dot').className = 'alarm-ring-dot aktif';
+      document.getElementById('alarm-status-text').innerText = 'Aktif Jam: ' + waktu + ' WIB';
+    }
+
+    function nonaktifkanAlarm() {
+      if (!client.connected) { alert('Koneksi terputus.'); return; }
+      client.publish('smartkos/alarm', 'OFF');
+      localStorage.removeItem('alarmWaktu');
+      document.getElementById('alarm-dot').className = 'alarm-ring-dot';
+      document.getElementById('alarm-status-text').innerText = 'Alarm tidak aktif';
+    }
+
+    // ── Init from LocalStorage ───────────────────────
+    if (localStorage.getItem('versi') !== '3') {
+      localStorage.removeItem('statusKipas');
+      localStorage.removeItem('alarmWaktu');
+      localStorage.removeItem('alarmSkipDate');
+      localStorage.setItem('versi', '3');
+    }
+
+    const savedLampu = localStorage.getItem('statusLampu');
+    if (savedLampu) setLampuUI(savedLampu);
+
+    if (localStorage.getItem('statusKipas') === null) {
+      localStorage.setItem('statusKipas', 'ON');
+      isInitialKipasSetup = true;
+    }
+    setKipasStatus(localStorage.getItem('statusKipas'), false);
+
+    const savedAlarm = localStorage.getItem('alarmWaktu');
+    if (savedAlarm) {
+      document.getElementById('waktu-alarm').value = savedAlarm;
+      document.getElementById('alarm-dot').className = 'alarm-ring-dot aktif';
+      document.getElementById('alarm-status-text').innerText = 'Aktif · ' + savedAlarm + ' WIB';
+    }
+
+    // ── MQTT ─────────────────────────────────────────
+    const broker  = 'wss://276d9e54084e4a99b7b863492b06212b.s1.eu.hivemq.cloud:8884/mqtt';
+    const options = {
+      username: 'Rafifirdaus',
+      password: '@Gresik123',
+      clientId: 'webClient_' + Math.random().toString(16).substr(2, 8)
+    };
+    const client = mqtt.connect(broker, options);
+
+    client.on('connect', () => {
+      ['btn-on','btn-off','btn-kipas-on','btn-kipas-off','btn-set','btn-nonaktif']
+        .forEach(id => document.getElementById(id).disabled = false);
+      client.subscribe('smartkos/status');
+      if (isInitialKipasSetup) {
+        client.publish('smartkos/kipas', 'ON');
+        isInitialKipasSetup = false;
+      }
+    });
+
+    client.on('disconnect', () => {
+      ['btn-on','btn-off','btn-kipas-on','btn-kipas-off','btn-set','btn-nonaktif']
+        .forEach(id => document.getElementById(id).disabled = true);
+    });
+
+    client.on('error', () => {
+      ['btn-on','btn-off','btn-kipas-on','btn-kipas-off','btn-set','btn-nonaktif']
+        .forEach(id => document.getElementById(id).disabled = true);
+    });
+
+    client.on('message', (topic, message) => {
+      if (topic === 'smartkos/status' && message.toString() === 'ALARM_BUNYI') {
+        setKipasStatus('OFF', true);
+      }
+    });
+
+    // ── Clock ─────────────────────────────────────────
+    let prevDigits = ['','','','','',''];
+
+    function updateJam() {
+      const now = new Date();
+      const jamStr = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).format(now).replace(/\./g, ':').replace(/:/g, '');
+
+      jamStr.split('').forEach((digit, i) => {
+        if (digit !== prevDigits[i]) {
+          const el = document.getElementById('d' + i);
+          el.classList.remove('slide-in');
+          void el.offsetWidth;
+          el.textContent = digit;
+          el.classList.add('slide-in');
+          prevDigits[i] = digit;
+        }
+      });
+
+      // Format: "Kam, 16 Apr 2026"
+      const tgl = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      }).format(now);
+      document.getElementById('tanggal').innerText = tgl;
+    }
+    setInterval(updateJam, 1000);
+    updateJam();
+
+    // ── Weather ───────────────────────────────────────
+    const WEATHER_KEY = 'fcf807bd760344b5a57124817261204';
+    const CUACA_URL   = 'https://api.weatherapi.com/v1/current.json?key=' + WEATHER_KEY + '&q=Surabaya&lang=id';
+
+    function ikonCuaca(code, isDay) {
+      if (code === 1000) return isDay ? '☀️' : '🌙';
+      if (code === 1003) return '⛅';
+      if ([1006,1009].includes(code)) return '☁️';
+      if ([1030,1135,1147].includes(code)) return '🌫️';
+      if ([1063,1150,1153,1168,1171,1180,1183].includes(code)) return '🌦️';
+      if ([1186,1189,1192,1195,1198,1201,1240,1243,1246].includes(code)) return '🌧️';
+      if ([1087,1273,1276,1279,1282].includes(code)) return '⛈️';
+      return '🌡️';
+    }
+
+    async function ambilCuaca() {
+      const el = document.getElementById('cuaca-content');
+      el.innerHTML = '<div class="cuaca-loading">Memuat data cuaca...</div>';
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        const res = await fetch(CUACA_URL, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error('Gagal');
+        const data = await res.json();
+        const c = data.current;
+        const suhu     = Math.round(c.temp_c);
+        const rasaSuhu = Math.round(c.feelslike_c);
+        const humidity = Math.round(c.humidity);
+        const angin    = Math.round(c.wind_kph);
+        const kondisi  = c.condition.text;
+        const icon     = ikonCuaca(c.condition.code, c.is_day);
+        let suhuWarna = '#22c55e';
+        if (suhu >= 35) suhuWarna = '#ef4444';
+        else if (suhu >= 30) suhuWarna = '#f97316';
+        else if (suhu >= 25) suhuWarna = '#f59e0b';
+        el.innerHTML = `
+          <div class="cuaca-box">
+            <div class="cuaca-left">
+              <div class="cuaca-top">
+                <div class="cuaca-suhu" style="color:${suhuWarna}">${suhu}°C</div>
+                <div class="cuaca-feels">Terasa ${rasaSuhu}°C</div>
+              </div>
+              <div class="cuaca-detail-row">
+                <div class="cuaca-detail-item">💧 Kelembapan ${humidity}%</div>
+                <div class="cuaca-detail-item">💨 Angin ${angin} km/j</div>
+              </div>
+            </div>
+            <div class="cuaca-right">
+              <div class="cuaca-icon-kondisi">
+                <div class="cuaca-icon">${icon}</div>
+              </div>
+              <div class="cuaca-kondisi">${kondisi}</div>
+            </div>
+          </div>`;
+      } catch (e) {
+        el.innerHTML = '<div class="cuaca-loading" style="color:#ef4444;">Gagal memuat cuaca.</div>';
+      }
+    }
+    ambilCuaca();
+    setInterval(ambilCuaca, 10 * 60 * 1000);
+
+    // ── Prayer Times ──────────────────────────────────
+    let sholatData = [];
+
+    function hitungSholat() {
+      const LAT = -7.2575, LON = 112.7521, TZ = 7;
+      const FAJR_ANG = 20, ISHA_ANG = 18;
+      const now = new Date();
+      const Y = now.getFullYear(), M = now.getMonth() + 1, D = now.getDate();
+      const JD = Math.floor(365.25*(Y+4716)) + Math.floor(30.6001*(M+1)) + D + 2
+        - Math.floor(Y/100) + Math.floor(Math.floor(Y/100)/4) - 1524.5;
+      const T  = (JD - 2451545) / 36525;
+      const L0 = (280.46646 + 36000.76983*T) % 360;
+      const M2 = (357.52911 + 35999.05029*T - 0.0001537*T*T) * Math.PI / 180;
+      const C  = (1.914602 - 0.004817*T)*Math.sin(M2) + 0.019993*Math.sin(2*M2);
+      const SL = (L0 + C) * Math.PI / 180;
+      const OB = (23.439291 - 0.013004*T) * Math.PI / 180;
+      const RA = Math.atan2(Math.cos(OB)*Math.sin(SL), Math.cos(SL)) * 180 / Math.PI;
+      const DEC = Math.asin(Math.sin(OB)*Math.sin(SL));
+      const EQT = (L0 - 0.0057183 - RA + (125.04 - 1934.136*T)*Math.PI/180
+        * (-0.00478*Math.sin((125.04-1934.136*T)*Math.PI/180)
+          - 0.00417*Math.sin(2*L0*Math.PI/180))) * 4;
+      const TRANSIT = 12 + TZ - LON/15 - EQT/60;
+
+      function hourAngle(angle) {
+        const a    = angle * Math.PI / 180;
+        const latR = LAT * Math.PI / 180;
+        const cos_h = (Math.sin(a) - Math.sin(latR)*Math.sin(DEC)) / (Math.cos(latR)*Math.cos(DEC));
+        if (cos_h < -1 || cos_h > 1) return null;
+        return Math.acos(cos_h) * 180 / Math.PI / 15;
+      }
+
+      function asrHourAngle(shadow) {
+        const latR  = LAT * Math.PI / 180;
+        const angle = Math.atan(1 / (shadow + Math.tan(Math.abs(latR - DEC))));
+        const cos_h = (Math.sin(angle) - Math.sin(latR)*Math.sin(DEC)) / (Math.cos(latR)*Math.cos(DEC));
+        if (cos_h < -1 || cos_h > 1) return null;
+        return Math.acos(cos_h) * 180 / Math.PI / 15;
+      }
+
+      function toHHMM(dec) {
+        if (dec === null) return '--:--';
+        dec = ((dec % 24) + 24) % 24;
+        const h  = Math.floor(dec);
+        const m  = Math.round((dec - h) * 60);
+        const hh = m === 60 ? h + 1 : h;
+        const mm = m === 60 ? 0 : m;
+        return String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+      }
+
+      return [
+        { nama: 'Subuh',   waktu: toHHMM(TRANSIT - hourAngle(-FAJR_ANG)) },
+        { nama: 'Dzuhur',  waktu: toHHMM(TRANSIT + 0.017) },
+        { nama: 'Ashar',   waktu: toHHMM(TRANSIT + asrHourAngle(1)) },
+        { nama: 'Maghrib', waktu: toHHMM(TRANSIT + hourAngle(-0.8333) + 0.033) },
+        { nama: 'Isya',    waktu: toHHMM(TRANSIT + hourAngle(-ISHA_ANG)) }
+      ];
+    }
+
+    function tampilSholat() {
+      const el = document.getElementById('sholat-content');
+      try {
+        sholatData = hitungSholat();
+        const now    = new Date();
+        const jamNow = now.toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false
+        }).replace('.', ':');
+
+        let idxAktif = -1;
+        for (let i = sholatData.length - 1; i >= 0; i--) {
+          if (jamNow >= sholatData[i].waktu) { idxAktif = i; break; }
+        }
+        const idxBerikutnya = (idxAktif + 1) % sholatData.length;
+
+        const cards = sholatData.map((s, i) => {
+          const active = i === idxAktif;
+          const next   = i === idxBerikutnya;
+          const badge  = active ? 'Sekarang' : next ? 'Berikutnya' : '';
+          const classes = ['sholat-card'];
+          if (active) classes.push('aktif');
+          if (next && !active) classes.push('berikutnya');
+          return `<div class="${classes.join(' ')}">
+            <div class="s-nama">${s.nama}</div>
+            <div class="s-waktu">${s.waktu}</div>
+            <div class="s-badge">${badge}</div>
+          </div>`;
+        }).join('');
+
+        el.innerHTML = `<div class="sholat-cards-row">${cards}</div>`;
+      } catch (e) {
+        el.innerHTML = '<div class="cuaca-loading" style="color:#ef4444;">Gagal menghitung jadwal sholat.</div>';
+      }
+    }
+
+    tampilSholat();
+    setInterval(tampilSholat, 60 * 1000);
+  </script>
+</body>
+</html>
